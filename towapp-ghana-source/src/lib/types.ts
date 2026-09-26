@@ -3,24 +3,24 @@
 
 export type City = 'Kumasi' | 'Accra'
 
-export type RequestType = 'tow' | 'jumpstart' | 'tire_change' | 'fuel_delivery' | 'lockout'
+export type RequestType = 'tow' | 'jumpstart' | 'tire_change' | 'lockout'
 
 export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
   tow: 'Towing',
   jumpstart: 'Battery Jumpstart',
   tire_change: 'Flat Tire Change',
-  fuel_delivery: 'Fuel Delivery',
   lockout: 'Lockout Assistance',
 }
 
-// Phase 1 only supports these five request types (the "basic rescue" bundle + towing).
-// Mechanic/repair dispatch is a deliberate Phase 2+ addition — do not add repair-type
-// requests here without re-reading the feasibility report's liability discussion first.
+// Phase 1 only supports these four request types (the "basic rescue" bundle + towing).
+// Fuel delivery was deliberately removed (see project history) — do not re-add it here
+// without re-confirming that decision. Mechanic/repair dispatch is a deliberate Phase 2+
+// addition — do not add repair-type requests here without re-reading the feasibility
+// report's liability discussion first.
 export const PHASE_1_REQUEST_TYPES: RequestType[] = [
   'tow',
   'jumpstart',
   'tire_change',
-  'fuel_delivery',
   'lockout',
 ]
 
@@ -69,6 +69,8 @@ export interface JobRequest {
   priceQuoted: number | null // GHS
   etaMinutes: number | null // set once an operator accepts; minutes-to-arrival at time of acceptance
   estimatedArrivalAt: string | null // ISO timestamp, set alongside etaMinutes
+  scheduledFor: string | null // ISO timestamp; set when the customer reserves a future pickup
+  // instead of requesting help ASAP (Uber Reserve-style). null means "as soon as possible."
   createdAt: string
   updatedAt: string
   notes: string
@@ -86,11 +88,21 @@ export const ETA_RANGE_MINUTES: Record<RequestType, [number, number]> = {
   tow: [18, 35],
   jumpstart: [10, 20],
   tire_change: [12, 22],
-  fuel_delivery: [15, 25],
   lockout: [10, 18],
 }
 
 export function formatEtaRange(requestType: RequestType): string {
   const [min, max] = ETA_RANGE_MINUTES[requestType]
   return `${min}–${max} min`
+}
+
+// Human-friendly formatting for a reserved pickup time, e.g. "Fri, Sep 26, 3:00 PM".
+export function formatScheduledTime(iso: string): string {
+  return new Date(iso).toLocaleString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }

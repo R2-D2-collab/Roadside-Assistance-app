@@ -142,6 +142,7 @@ export async function createJobRequest(input: {
   requestType: RequestType
   locationDescription: string
   notes: string
+  scheduledFor?: string | null // ISO timestamp; omit/null for an ASAP request
 }): Promise<JobRequest> {
   const job: JobRequest = {
     id: crypto.randomUUID(),
@@ -158,6 +159,7 @@ export async function createJobRequest(input: {
     priceQuoted: null,
     etaMinutes: null,
     estimatedArrivalAt: null,
+    scheduledFor: input.scheduledFor ?? null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     notes: input.notes,
@@ -188,13 +190,20 @@ export async function updateJobStatus(
     if (status === 'assigned') {
       const { data: existing } = await supabase
         .from('job_requests')
-        .select('requestType')
+        .select('requestType, scheduledFor')
         .eq('id', jobId)
         .single()
       if (existing) {
-        const eta = randomEtaMinutes(existing.requestType as RequestType)
-        patch.etaMinutes = eta
-        patch.estimatedArrivalAt = new Date(Date.now() + eta * 60_000).toISOString()
+        const scheduledFor = existing.scheduledFor as string | null
+        if (scheduledFor && new Date(scheduledFor).getTime() > Date.now()) {
+          // Reserved job: the promise is the scheduled time itself, not "now + eta".
+          patch.etaMinutes = Math.round((new Date(scheduledFor).getTime() - Date.now()) / 60_000)
+          patch.estimatedArrivalAt = scheduledFor
+        } else {
+          const eta = randomEtaMinutes(existing.requestType as RequestType)
+          patch.etaMinutes = eta
+          patch.estimatedArrivalAt = new Date(Date.now() + eta * 60_000).toISOString()
+        }
       }
     }
     const { error } = await supabase.from('job_requests').update(patch).eq('id', jobId)
@@ -212,9 +221,14 @@ export async function updateJobStatus(
       updatedAt: new Date().toISOString(),
     }
     if (status === 'assigned' && !next.etaMinutes) {
-      const eta = randomEtaMinutes(j.requestType)
-      next.etaMinutes = eta
-      next.estimatedArrivalAt = new Date(Date.now() + eta * 60_000).toISOString()
+      if (j.scheduledFor && new Date(j.scheduledFor).getTime() > Date.now()) {
+        next.etaMinutes = Math.round((new Date(j.scheduledFor).getTime() - Date.now()) / 60_000)
+        next.estimatedArrivalAt = j.scheduledFor
+      } else {
+        const eta = randomEtaMinutes(j.requestType)
+        next.etaMinutes = eta
+        next.estimatedArrivalAt = new Date(Date.now() + eta * 60_000).toISOString()
+      }
     }
     return next
   })
