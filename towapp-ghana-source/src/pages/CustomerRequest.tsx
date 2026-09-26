@@ -4,6 +4,7 @@ import {
   PHASE_1_REQUEST_TYPES,
   REQUEST_TYPE_LABELS,
   formatEtaRange,
+  formatScheduledTime,
   type City,
   type RequestType,
   type JobRequest,
@@ -12,9 +13,19 @@ import {
 
 const CITIES: City[] = ['Kumasi', 'Accra']
 
+// Earliest a customer can reserve for — at least 15 min out, formatted for
+// <input type="datetime-local">'s "YYYY-MM-DDTHH:mm" requirement.
+function minScheduleValue(): string {
+  const d = new Date(Date.now() + 15 * 60_000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export default function CustomerRequest() {
   const [city, setCity] = useState<City>('Kumasi')
   const [requestType, setRequestType] = useState<RequestType>('tow')
+  const [isScheduled, setIsScheduled] = useState(false)
+  const [scheduledDate, setScheduledDate] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [location, setLocation] = useState('')
@@ -62,6 +73,20 @@ export default function CustomerRequest() {
       return
     }
 
+    let scheduledForIso: string | null = null
+    if (isScheduled) {
+      if (!scheduledDate) {
+        setError('Please choose a date and time for your reservation.')
+        return
+      }
+      const chosen = new Date(scheduledDate)
+      if (chosen.getTime() <= Date.now()) {
+        setError('Please choose a time in the future for your reservation.')
+        return
+      }
+      scheduledForIso = chosen.toISOString()
+    }
+
     setSubmitting(true)
     try {
       const job = await createJobRequest({
@@ -71,6 +96,7 @@ export default function CustomerRequest() {
         requestType,
         locationDescription: location.trim(),
         notes: notes.trim(),
+        scheduledFor: scheduledForIso,
       })
       setSubmittedJob(job)
     } catch (err) {
@@ -92,7 +118,19 @@ export default function CustomerRequest() {
 
     return (
       <div className="max-w-md mx-auto mt-10 bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
-        {job.status === 'requested' && (
+        {job.status === 'requested' && job.scheduledFor && (
+          <>
+            <div className="text-4xl mb-3">📅</div>
+            <h2 className="text-xl font-semibold mb-2">Reservation confirmed</h2>
+            <p className="text-gray-600 mb-4">
+              Your {REQUEST_TYPE_LABELS[job.requestType].toLowerCase()} is reserved in {job.city} for{' '}
+              <span className="font-medium text-gray-800">{formatScheduledTime(job.scheduledFor)}</span>. We'll
+              match you with an operator closer to your pickup time.
+            </p>
+          </>
+        )}
+
+        {job.status === 'requested' && !job.scheduledFor && (
           <>
             <div className="text-4xl mb-3">🔎</div>
             <h2 className="text-xl font-semibold mb-2">Finding you help</h2>
@@ -118,15 +156,26 @@ export default function CustomerRequest() {
               {REQUEST_TYPE_LABELS[job.requestType].toLowerCase()} request.
             </p>
             <div className="bg-[var(--color-brand)]/5 border border-[var(--color-brand)]/20 rounded-lg p-4 mb-4">
-              <div className="text-3xl font-bold text-[var(--color-brand)]">
-                {job.status === 'in_progress'
-                  ? 'On scene'
-                  : minutesLeft !== null && minutesLeft > 0
-                    ? `~${minutesLeft} min`
-                    : 'Arriving now'}
-              </div>
-              {arrivalTimeLabel && job.status !== 'in_progress' && (
-                <div className="text-xs text-gray-500 mt-1">Estimated arrival by {arrivalTimeLabel}</div>
+              {job.scheduledFor && job.status !== 'in_progress' ? (
+                <>
+                  <div className="text-2xl font-bold text-[var(--color-brand)]">Reserved</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Operator confirmed for {formatScheduledTime(job.scheduledFor)}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-3xl font-bold text-[var(--color-brand)]">
+                    {job.status === 'in_progress'
+                      ? 'On scene'
+                      : minutesLeft !== null && minutesLeft > 0
+                        ? `~${minutesLeft} min`
+                        : 'Arriving now'}
+                  </div>
+                  {arrivalTimeLabel && job.status !== 'in_progress' && (
+                    <div className="text-xs text-gray-500 mt-1">Estimated arrival by {arrivalTimeLabel}</div>
+                  )}
+                </>
               )}
             </div>
           </>
@@ -214,6 +263,43 @@ export default function CustomerRequest() {
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">When do you need it?</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsScheduled(false)}
+              className={`flex-1 py-2 rounded-lg border text-sm font-medium ${
+                !isScheduled
+                  ? 'bg-[var(--color-brand)] text-white border-[var(--color-brand)]'
+                  : 'border-gray-300 text-gray-700'
+              }`}
+            >
+              Now
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsScheduled(true)}
+              className={`flex-1 py-2 rounded-lg border text-sm font-medium ${
+                isScheduled
+                  ? 'bg-[var(--color-brand)] text-white border-[var(--color-brand)]'
+                  : 'border-gray-300 text-gray-700'
+              }`}
+            >
+              Reserve for later
+            </button>
+          </div>
+          {isScheduled && (
+            <input
+              type="datetime-local"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mt-2"
+              value={scheduledDate}
+              min={minScheduleValue()}
+              onChange={(e) => setScheduledDate(e.target.value)}
+            />
+          )}
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Your name</label>
           <input
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -262,7 +348,7 @@ export default function CustomerRequest() {
           disabled={submitting}
           className="w-full bg-[var(--color-brand)] text-white font-medium py-3 rounded-lg disabled:opacity-50"
         >
-          {submitting ? 'Submitting…' : 'Request Help'}
+          {submitting ? 'Submitting…' : isScheduled ? 'Reserve' : 'Request Help'}
         </button>
       </form>
     </div>

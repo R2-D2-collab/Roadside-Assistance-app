@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { listJobRequests, listOperators, updateJobStatus } from '../lib/dataStore'
-import { REQUEST_TYPE_LABELS, type City, type JobRequest, type JobStatus, type Operator } from '../lib/types'
+import {
+  REQUEST_TYPE_LABELS,
+  formatScheduledTime,
+  type City,
+  type JobRequest,
+  type JobStatus,
+  type Operator,
+} from '../lib/types'
 
 const CITIES: City[] = ['Kumasi', 'Accra']
 
@@ -102,6 +109,11 @@ export default function OperatorDashboard() {
                       <div className="font-medium text-sm">{REQUEST_TYPE_LABELS[job.requestType]}</div>
                       <div className="text-xs text-gray-500">{job.locationDescription} • {job.customerName} • {job.customerPhone}</div>
                       <div className="text-xs mt-1 inline-block px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{job.status.replace('_', ' ')}</div>
+                      {job.scheduledFor && (
+                        <div className="text-xs mt-1 inline-block px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 ml-1">
+                          Reserved for {formatScheduledTime(job.scheduledFor)}
+                        </div>
+                      )}
                       {job.estimatedArrivalAt && (
                         <div className="text-xs text-gray-400 mt-1">
                           Promised to customer: by{' '}
@@ -134,6 +146,11 @@ export default function OperatorDashboard() {
                     <div>
                       <div className="font-medium text-sm">{REQUEST_TYPE_LABELS[job.requestType]}</div>
                       <div className="text-xs text-gray-500">{job.locationDescription} • {job.customerName}</div>
+                      {job.scheduledFor && (
+                        <div className="text-xs mt-1 inline-block px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">
+                          Reserved for {formatScheduledTime(job.scheduledFor)}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => acceptJob(job.id)}

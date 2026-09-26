@@ -97,9 +97,11 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-3 py-2 text-gray-500">
-                          {job.estimatedArrivalAt
-                            ? `By ${new Date(job.estimatedArrivalAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-                            : '—'}
+                          {job.scheduledFor
+                            ? `Reserved: ${new Date(job.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                            : job.estimatedArrivalAt
+                              ? `By ${new Date(job.estimatedArrivalAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                              : '—'}
                         </td>
                         <td className="px-3 py-2 text-gray-400">
                           {new Date(job.createdAt).toLocaleString()}
